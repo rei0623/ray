@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>超サプライズ！</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: black;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        
+        #surprise-text {
+            color: white;
+            font-size: 2em;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .rainbow {
+            animation: rainbow 2s infinite;
+        }
+
+        @keyframes rainbow {
+            0% { color: red; }
+            20% { color: yellow; }
+            40% { color: green; }
+            60% { color: blue; }
+            80% { color: purple; }
+            100% { color: red; }
+        }
+
+        .shake {
+            animation: shake 0.5s infinite;
+        }
+
+        @keyframes shake {
+            0% { transform: translate(0, 0); }
+            25% { transform: translate(-10px, 10px); }
+            50% { transform: translate(10px, -10px); }
+            75% { transform: translate(-10px, -10px); }
+            100% { transform: translate(0, 0); }
+        }
+
+        .emoji {
+            position: fixed;
+            pointer-events: none;
+            font-size: 2em;
+            z-index: 1000;
+        }
+
+        #cursor-follower {
+            position: fixed;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            pointer-events: none;
+            mix-blend-mode: difference;
+            z-index: 9999;
+            transition: transform 0.1s;
+        }
+
+        .rotate-screen {
+            animation: rotateScreen 2s infinite linear;
+        }
+
+        @keyframes rotateScreen {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .matrix-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+            opacity: 0.5;
+        }
+
+        /* 新しいアニメーション効果 */
+        .glitch {
+            animation: glitch 0.3s infinite;
+            text-shadow: 
+                2px 0 #ff0000,
+                -2px 0 #00ff00;
+        }
+
+        @keyframes glitch {
+            0% { transform: translate(0) }
+            20% { transform: translate(-2px, 2px) }
+            40% { transform: translate(-2px, -2px) }
+            60% { transform: translate(2px, 2px) }
+            80% { transform: translate(2px, -2px) }
+            100% { transform: translate(0) }
+        }
+
+        .tilt-screen {
+            animation: tilt 0.5s infinite;
+            transform-origin: center;
+        }
+
+        @keyframes tilt {
+            0% { transform: perspective(500px) rotateX(0deg) }
+            50% { transform: perspective(500px) rotateX(30deg) }
+            100% { transform: perspective(500px) rotateX(0deg) }
+        }
+
+        .shake-hard {
+            animation: shakeHard 0.1s infinite;
+        }
+
+        @keyframes shakeHard {
+            0% { transform: translate(0, 0) rotate(0deg); }
+            25% { transform: translate(-25px, 25px) rotate(-5deg); }
+            50% { transform: translate(25px, -25px) rotate(5deg); }
+            75% { transform: translate(-25px, -25px) rotate(-5deg); }
+            100% { transform: translate(0, 0) rotate(0deg); }
+        }
+
+        /* 新しいエフェクト */
+        .invert {
+            animation: invert 0.1s infinite;
+        }
+
+        @keyframes invert {
+            0% { filter: invert(0%); }
+            50% { filter: invert(100%); }
+            100% { filter: invert(0%); }
+        }
+
+        .zoom-bounce {
+            animation: zoomBounce 0.5s infinite;
+        }
+
+        @keyframes zoomBounce {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.5); }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes spiral {
+            from { transform: rotate(0deg) translateX(50px) rotate(0deg); }
+            to { transform: rotate(360deg) translateX(50px) rotate(-360deg); }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="matrix-canvas" class="matrix-bg"></canvas>
+    <div id="cursor-follower"></div>
+    <h1 id="surprise-text">ここをクリックしてね！</h1>
+    <audio id="pop-sound" src="https://www.soundjay.com/buttons/sounds/button-09.mp3" preload="auto"></audio>
+    <audio id="chaos-sound" src="https://www.soundjay.com/mechanical/sounds/robot-movement-1.mp3" preload="auto"></audio>
+    <audio id="scream-sound" src="https://www.soundjay.com/human/sounds/scream-01.mp3" preload="auto"></audio>
+    <audio id="laser-sound" src="https://www.soundjay.com/mechanical/sounds/laser-gun-19sf.mp3" preload="auto"></audio>
+    <audio id="explosion-sound" src="https://www.soundjay.com/explosion/explosion-01.mp3" preload="auto"></audio>
+
+    <script>
+        let clickCount = 0;
+        const text = document.getElementById('surprise-text');
+        const surpriseMessages = [
+            'わー！',
+            'もっとクリックして！',
+            'すごい！',
+            'とまらない！',
+            'やばい！'
+        ];
+
+        const emojis = ['🎉', '💥', '⭐', '🌈', '🚀', '🎨', '🎸', '🎪'];
+        const audio = document.getElementById('pop-sound');
+        const chaosSound = document.getElementById('chaos-sound');
+        const screamSound = document.getElementById('scream-sound');
+        const laserSound = document.getElementById('laser-sound');
+        const explosionSound = document.getElementById('explosion-sound');
+        
+        // カーソルフォロワー
+        const follower = document.getElementById('cursor-follower');
+        document.addEventListener('mousemove', (e) => {
+            follower.style.left = e.clientX - 10 + 'px';
+            follower.style.top = e.clientY - 10 + 'px';
+        });
+
+        // マトリックス背景
+        const canvas = document.getElementById('matrix-canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        const matrix = "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789@#$%^&*()*&^%";
+        const matrixChars = matrix.split('');
+        const fontSize = 10;
+        const columns = canvas.width/fontSize;
+        const drops = Array(Math.floor(columns)).fill(1);
+
+        function drawMatrix() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.04)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#0F0';
+            ctx.font = fontSize + 'px monospace';
+
+            for(let i = 0; i < drops.length; i++) {
+                const text = matrixChars[Math.floor(Math.random() * matrixChars.length)];
+                ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+                if(drops[i] * fontSize > canvas.height && Math.random() > 0.975)
+                    drops[i] = 0;
+                drops[i]++;
+            }
+        }
+
+        // 画面を揺らす関数
+        function shakeScreen() {
+            document.body.classList.add('shake-hard');
+            setTimeout(() => document.body.classList.remove('shake-hard'), 1000);
+        }
+
+        // ランダムな位置に要素を生成
+        function createChaosElement(text, color) {
+            const elem = document.createElement('div');
+            elem.style.position = 'fixed';
+            elem.style.color = color;
+            elem.style.fontSize = Math.random() * 50 + 20 + 'px';
+            elem.style.left = Math.random() * window.innerWidth + 'px';
+            elem.style.top = Math.random() * window.innerHeight + 'px';
+            elem.style.zIndex = '1000';
+            elem.style.fontWeight = 'bold';
+            elem.style.fontFamily = 'Arial, sans-serif';
+            elem.textContent = text;
+            document.body.appendChild(elem);
+            return elem;
+        }
+
+        // 新しい関数：レーザービーム生成
+        function createLaserBeam(startX, startY) {
+            const laser = document.createElement('div');
+            laser.style.position = 'fixed';
+            laser.style.width = '2px';
+            laser.style.height = '100vh';
+            laser.style.background = 'linear-gradient(to bottom, transparent, #ff0000, transparent)';
+            laser.style.left = startX + 'px';
+            laser.style.top = '0';
+            laser.style.zIndex = '999';
+            document.body.appendChild(laser);
+            
+            laserSound.currentTime = 0;
+            laserSound.play();
+            
+            setTimeout(() => laser.remove(), 500);
+        }
+
+        text.addEventListener('click', () => {
+            clickCount++;
+            
+            // テキストをランダムに変更
+            text.textContent = surpriseMessages[Math.floor(Math.random() * surpriseMessages.length)];
+            
+            // 効果を追加
+            text.classList.add('rainbow');
+            text.classList.add('shake');
+            
+            // 背景色をランダムに変更
+            document.body.style.backgroundColor = `rgb(
+                ${Math.random() * 255},
+                ${Math.random() * 255},
+                ${Math.random() * 255}
+            )`;
+
+            // 文字サイズを大きくする
+            text.style.fontSize = `${2 + clickCount * 0.5}em`;
+
+            // 絵文字を飛ばす
+            const emoji = document.createElement('div');
+            emoji.className = 'emoji';
+            emoji.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+            emoji.style.left = Math.random() * window.innerWidth + 'px';
+            emoji.style.top = Math.random() * window.innerHeight + 'px';
+            document.body.appendChild(emoji);
+            
+            // アニメーション
+            emoji.animate([
+                { transform: 'translate(0, 0) rotate(0deg)' },
+                { transform: `translate(${Math.random() * 200 - 100}px, ${-Math.random() * 200}px) rotate(${Math.random() * 360}deg)` }
+            ], {
+                duration: 1000,
+                easing: 'cubic-bezier(.21,1.93,.53,.64)'
+            }).onfinish = () => emoji.remove();
+
+            // 音を鳴らす
+            audio.currentTime = 0;
+            audio.play();
+
+            // 2回クリックでレーザービーム
+            if (clickCount === 2) {
+                for (let i = 0; i < 10; i++) {
+                    setTimeout(() => {
+                        createLaserBeam(Math.random() * window.innerWidth);
+                    }, i * 200);
+                }
+            }
+
+            // 5回クリックでマトリックス効果開始
+            if (clickCount === 5) {
+                setInterval(drawMatrix, 50);
+                document.body.classList.add('invert');
+                setTimeout(() => document.body.classList.remove('invert'), 2000);
+            }
+
+            // 7回クリックで画面回転
+            if (clickCount === 7) {
+                document.body.classList.add('rotate-screen');
+                const elements = document.querySelectorAll('*');
+                elements.forEach(el => {
+                    el.style.animation = `spiral ${Math.random() * 2 + 1}s infinite linear`;
+                    setTimeout(() => el.style.animation = '', 3000);
+                });
+            }
+
+            // 3回クリックでグリッチ効果
+            if (clickCount === 3) {
+                text.classList.add('glitch');
+                chaosSound.play();
+            }
+
+            // 4回クリックで画面傾斜
+            if (clickCount === 4) {
+                document.body.classList.add('tilt-screen');
+            }
+
+            // 6回クリックでカオス効果
+            if (clickCount === 6) {
+                shakeScreen();
+                screamSound.play();
+                for (let i = 0; i < 20; i++) {
+                    setTimeout(() => {
+                        const elem = createChaosElement('ERROR', '#ff0000');
+                        elem.animate([
+                            { transform: 'scale(1)', opacity: 1 },
+                            { transform: 'scale(2)', opacity: 0 }
+                        ], {
+                            duration: 1000,
+                            easing: 'ease-out'
+                        }).onfinish = () => elem.remove();
+                    }, i * 100);
+                }
+            }
+
+            // 8回クリックで画面反転
+            if (clickCount === 8) {
+                document.body.style.transform = 'scale(-1, -1)';
+                setTimeout(() => {
+                    document.body.style.transform = 'none';
+                }, 2000);
+            }
+
+            // 9回クリックでモザイク効果
+            if (clickCount === 9) {
+                document.body.style.filter = 'blur(5px) contrast(200%)';
+                setTimeout(() => {
+                    document.body.style.filter = 'none';
+                }, 1000);
+            }
+
+            // 10回クリック時の爆発をさらに派手に
+            if (clickCount === 10) {
+                alert('🎉 カオスモード解放！ 🎉');
+                document.body.style.animation = 'rainbow 0.5s infinite';
+                
+                // 既存の爆発エフェクトに加えて...
+                for (let i = 0; i < 200; i++) {
+                    setTimeout(() => {
+                        const texts = ['わーー！', 'すごい！', 'やばい！', '！！！', '💥', '🌟'];
+                        const colors = ['#ff0000', '#00ff00', '#0000ff', '#ff00ff', '#ffff00', '#00ffff'];
+                        const elem = createChaosElement(
+                            texts[Math.floor(Math.random() * texts.length)],
+                            colors[Math.floor(Math.random() * colors.length)]
+                        );
+                        
+                        elem.animate([
+                            { transform: 'scale(0) rotate(0deg)', opacity: 0 },
+                            { transform: 'scale(1) rotate(720deg)', opacity: 1 },
+                            { transform: 'scale(0.5) rotate(1440deg)', opacity: 0 }
+                        ], {
+                            duration: 3000,
+                            easing: 'cubic-bezier(.21,1.93,.53,.64)'
+                        }).onfinish = () => elem.remove();
+                    }, i * 30);
+                }
+                
+                // 画面を激しく揺らす
+                shakeScreen();
+                
+                // 効果音を重ねる
+                chaosSound.play();
+                setTimeout(() => screamSound.play(), 500);
+
+                // 画面全体を揺らすインターバル
+                const shakeInterval = setInterval(shakeScreen, 500);
+                
+                // ランダムな位置から爆発音
+                setInterval(() => {
+                    explosionSound.currentTime = 0;
+                    explosionSound.play();
+                }, 1000);
+
+                // 全要素をランダムに動かす
+                document.querySelectorAll('*').forEach(el => {
+                    el.style.transition = 'all 0.3s';
+                    setInterval(() => {
+                        el.style.transform = `
+                            translate(${Math.random() * 100 - 50}px, ${Math.random() * 100 - 50}px)
+                            rotate(${Math.random() * 360}deg)
+                            scale(${Math.random() + 0.5})
+                        `;
+                    }, 300);
+                });
+
+                // 10秒後に全てリセット
+                setTimeout(() => {
+                    clearInterval(shakeInterval);
+                    location.reload();
+                }, 10000);
+            }
+        });
+
+        // マウス移動時の追加効果
+        document.addEventListener('mousemove', (e) => {
+            if (clickCount >= 8) {
+                const trail = document.createElement('div');
+                trail.style.position = 'fixed';
+                trail.style.left = e.clientX + 'px';
+                trail.style.top = e.clientY + 'px';
+                trail.style.width = '10px';
+                trail.style.height = '10px';
+                trail.style.background = `hsl(${Math.random() * 360}, 100%, 50%)`;
+                trail.style.borderRadius = '50%';
+                trail.style.pointerEvents = 'none';
+                trail.style.zIndex = '998';
+                document.body.appendChild(trail);
+
+                trail.animate([
+                    { transform: 'scale(1)', opacity: 1 },
+                    { transform: 'scale(0)', opacity: 0 }
+                ], {
+                    duration: 1000,
+                    easing: 'ease-out'
+                }).onfinish = () => trail.remove();
+            }
+        });
+    </script>
+</body>
+</html>
