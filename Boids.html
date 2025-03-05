@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Boids シミュレーション 改善版</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #222;
+      overflow: hidden;
+      font-family: sans-serif;
+    }
+    canvas {
+      display: block;
+    }
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      padding: 10px;
+      border-radius: 5px;
+      z-index: 10;
+      font-size: 14px;
+    }
+    #controls label {
+      display: inline-block;
+      width: 150px;
+    }
+    #controls input[type="range"] {
+      width: 120px;
+      vertical-align: middle;
+      margin: 3px 0;
+    }
+    #controls div {
+      margin-bottom: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <div>
+      <label for="numBoids">ボイド数:</label>
+      <input type="range" id="numBoids" min="20" max="300" step="10" value="100">
+      <span id="numBoidsVal">100</span>
+    </div>
+    <div>
+      <label for="perceptionRadius">認識半径:</label>
+      <input type="range" id="perceptionRadius" min="20" max="150" step="5" value="50">
+      <span id="perceptionRadiusVal">50</span>
+    </div>
+    <div>
+      <label for="maxSpeed">最大速度:</label>
+      <input type="range" id="maxSpeed" min="1" max="10" step="0.5" value="3">
+      <span id="maxSpeedVal">3</span>
+    </div>
+    <div>
+      <label for="maxForce">最大加速度:</label>
+      <input type="range" id="maxForce" min="0.01" max="0.5" step="0.01" value="0.05">
+      <span id="maxForceVal">0.05</span>
+    </div>
+    <div>
+      <label for="separationWeight">分離の重み:</label>
+      <input type="range" id="separationWeight" min="0" max="3" step="0.1" value="1.5">
+      <span id="separationWeightVal">1.5</span>
+    </div>
+    <div>
+      <label for="alignmentWeight">整列の重み:</label>
+      <input type="range" id="alignmentWeight" min="0" max="3" step="0.1" value="1.0">
+      <span id="alignmentWeightVal">1.0</span>
+    </div>
+    <div>
+      <label for="cohesionWeight">結束の重み:</label>
+      <input type="range" id="cohesionWeight" min="0" max="3" step="0.1" value="1.0">
+      <span id="cohesionWeightVal">1.0</span>
+    </div>
+  </div>
+  <canvas id="canvas"></canvas>
+  <script>
+    // ----- 基本設定 -----
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+
+    // ----- パラメータ（UIと連動） -----
+    const params = {
+      numBoids: 100,
+      perceptionRadius: 50,
+      maxSpeed: 3,
+      maxForce: 0.05,
+      separationWeight: 1.5,
+      alignmentWeight: 1.0,
+      cohesionWeight: 1.0
+    };
+
+    function updateSlider(id, key, decimals = 0) {
+      const slider = document.getElementById(id);
+      const span = document.getElementById(id + "Val");
+      slider.addEventListener("input", (e) => {
+        params[key] = parseFloat(e.target.value);
+        span.textContent = params[key].toFixed(decimals);
+        if(key === "numBoids") {
+          resetBoids();
+        }
+      });
+    }
+    updateSlider("numBoids", "numBoids", 0);
+    updateSlider("perceptionRadius", "perceptionRadius", 0);
+    updateSlider("maxSpeed", "maxSpeed", 1);
+    updateSlider("maxForce", "maxForce", 2);
+    updateSlider("separationWeight", "separationWeight", 1);
+    updateSlider("alignmentWeight", "alignmentWeight", 1);
+    updateSlider("cohesionWeight", "cohesionWeight", 1);
+
+    // ----- ベクトル計算のユーティリティ -----
+    function add(v1, v2) {
+      return { x: v1.x + v2.x, y: v1.y + v2.y };
+    }
+    function sub(v1, v2) {
+      return { x: v1.x - v2.x, y: v1.y - v2.y };
+    }
+    function mult(v, n) {
+      return { x: v.x * n, y: v.y * n };
+    }
+    function div(v, n) {
+      return { x: v.x / n, y: v.y / n };
+    }
+    function mag(v) {
+      return Math.hypot(v.x, v.y);
+    }
+    function normalize(v) {
+      const m = mag(v);
+      return m === 0 ? { x: 0, y: 0 } : div(v, m);
+    }
+    function limit(v, max) {
+      if (mag(v) > max) {
+        return mult(normalize(v), max);
+      }
+      return v;
+    }
+    function distance(a, b) {
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+
+    // ----- Boid クラス -----
+    class Boid {
+      constructor() {
+        this.position = {
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height
+        };
+        const angle = Math.random() * 2 * Math.PI;
+        this.velocity = { x: Math.cos(angle), y: Math.sin(angle) };
+        this.acceleration = { x: 0, y: 0 };
+      }
+      update() {
+        this.velocity = add(this.velocity, this.acceleration);
+        this.velocity = limit(this.velocity, params.maxSpeed);
+        this.position = add(this.position, this.velocity);
+        this.acceleration = { x: 0, y: 0 };
+        // 画面端でラップアラウンド
+        if (this.position.x < 0) this.position.x = canvas.width;
+        if (this.position.x > canvas.width) this.position.x = 0;
+        if (this.position.y < 0) this.position.y = canvas.height;
+        if (this.position.y > canvas.height) this.position.y = 0;
+      }
+      applyForce(force) {
+        this.acceleration = add(this.acceleration, force);
+      }
+      // 分離：近すぎるボイドから離れる
+      separation(boids) {
+        let steer = { x: 0, y: 0 };
+        let total = 0;
+        for (let other of boids) {
+          const d = distance(this.position, other.position);
+          if (other !== this && d < params.perceptionRadius && d > 0) {
+            let diff = sub(this.position, other.position);
+            diff = normalize(diff);
+            diff = div(diff, d); // 距離に反比例
+            steer = add(steer, diff);
+            total++;
+          }
+        }
+        if (total > 0) {
+          steer = div(steer, total);
+          steer = normalize(steer);
+          steer = mult(steer, params.maxSpeed);
+          steer = sub(steer, this.velocity);
+          steer = limit(steer, params.maxForce);
+        }
+        return steer;
+      }
+      // 整列：近隣ボイドの平均速度に合わせる
+      alignment(boids) {
+        let sum = { x: 0, y: 0 };
+        let total = 0;
+        for (let other of boids) {
+          const d = distance(this.position, other.position);
+          if (other !== this && d < params.perceptionRadius) {
+            sum = add(sum, other.velocity);
+            total++;
+          }
+        }
+        if (total > 0) {
+          sum = div(sum, total);
+          sum = normalize(sum);
+          sum = mult(sum, params.maxSpeed);
+          let steer = sub(sum, this.velocity);
+          steer = limit(steer, params.maxForce);
+          return steer;
+        } else {
+          return { x: 0, y: 0 };
+        }
+      }
+      // 結束：近隣ボイドの中心へ向かう
+      cohesion(boids) {
+        let sum = { x: 0, y: 0 };
+        let total = 0;
+        for (let other of boids) {
+          const d = distance(this.position, other.position);
+          if (other !== this && d < params.perceptionRadius) {
+            sum = add(sum, other.position);
+            total++;
+          }
+        }
+        if (total > 0) {
+          sum = div(sum, total);
+          return this.seek(sum);
+        } else {
+          return { x: 0, y: 0 };
+        }
+      }
+      // 目標へ向かう力を求める
+      seek(target) {
+        let desired = sub(target, this.position);
+        desired = normalize(desired);
+        desired = mult(desired, params.maxSpeed);
+        let steer = sub(desired, this.velocity);
+        steer = limit(steer, params.maxForce);
+        return steer;
+      }
+      flock(boids) {
+        let sep = this.separation(boids);
+        let ali = this.alignment(boids);
+        let coh = this.cohesion(boids);
+        sep = mult(sep, params.separationWeight);
+        ali = mult(ali, params.alignmentWeight);
+        coh = mult(coh, params.cohesionWeight);
+        this.applyForce(sep);
+        this.applyForce(ali);
+        this.applyForce(coh);
+      }
+      draw() {
+        const angle = Math.atan2(this.velocity.y, this.velocity.x);
+        ctx.save();
+        ctx.translate(this.position.x, this.position.y);
+        ctx.rotate(angle);
+        ctx.beginPath();
+        ctx.moveTo(0, -5);
+        ctx.lineTo(-5, 5);
+        ctx.lineTo(5, 5);
+        ctx.closePath();
+        ctx.fillStyle = "#FFD700";
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
+    // ----- 集団生成とリセット -----
+    let boids = [];
+    function resetBoids() {
+      boids = [];
+      for (let i = 0; i < params.numBoids; i++) {
+        boids.push(new Boid());
+      }
+    }
+    resetBoids();
+
+    // ----- アニメーションループ -----
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let boid of boids) {
+        boid.flock(boids);
+        boid.update();
+        boid.draw();
+      }
+      requestAnimationFrame(animate);
+    }
+    animate();
+  </script>
+</body>
+</html>
