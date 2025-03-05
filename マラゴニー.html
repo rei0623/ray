@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>Marangoni Effect Simulation</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #000;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+    }
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+      color: #fff;
+      font-family: sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <p>Marangoni Effect Simulation</p>
+  </div>
+  <canvas id="canvas"></canvas>
+  <script>
+    // Canvas 初期設定
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // 濃度場（グリッド）のパラメータ
+    const gridWidth = 100;
+    const gridHeight = 100;
+    let conc = new Array(gridWidth * gridHeight).fill(0);
+    let newConc = new Array(gridWidth * gridHeight).fill(0);
+    const diffusion = 0.1;       // 拡散係数
+    const sourceStrength = 5;    // ソースから毎フレーム追加する濃度
+    const sourceX = Math.floor(gridWidth / 2);
+    const sourceY = Math.floor(gridHeight / 2);
+    
+    // 粒子シミュレーションのパラメータ
+    const numParticles = 1000;
+    let particles = [];
+    for(let i = 0; i < numParticles; i++){
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: 0,
+        vy: 0
+      });
+    }
+    const friction = 0.99;
+    const forceScale = 0.1; // 濃度勾配から得る力の大きさ
+
+    // 濃度場の更新（拡散処理＋ソース追加）
+    function updateField(){
+      // 各セルについて 4近傍との拡散（境界はシンプルに処理）
+      for(let y = 0; y < gridHeight; y++){
+        for(let x = 0; x < gridWidth; x++){
+          let i = y * gridWidth + x;
+          let sum = conc[i];
+          let count = 1;
+          if(x > 0){
+            sum += conc[i - 1];
+            count++;
+          }
+          if(x < gridWidth - 1){
+            sum += conc[i + 1];
+            count++;
+          }
+          if(y > 0){
+            sum += conc[i - gridWidth];
+            count++;
+          }
+          if(y < gridHeight - 1){
+            sum += conc[i + gridWidth];
+            count++;
+          }
+          newConc[i] = conc[i] + diffusion * (sum / count - conc[i]);
+        }
+      }
+      // フィールドの入れ替え
+      [conc, newConc] = [newConc, conc];
+      
+      // 中央にソースを追加
+      let sourceIndex = sourceY * gridWidth + sourceX;
+      conc[sourceIndex] += sourceStrength;
+    }
+
+    // 指定位置（グリッド座標）での濃度勾配を計算（中央差分）
+    function getGradient(x, y){
+      let ix = Math.floor(x);
+      let iy = Math.floor(y);
+      // 周囲のセルに合わせてインデックスを制限
+      ix = Math.max(1, Math.min(gridWidth - 2, ix));
+      iy = Math.max(1, Math.min(gridHeight - 2, iy));
+      let i = iy * gridWidth + ix;
+      let gx = (conc[i + 1] - conc[i - 1]) / 2;
+      let gy = (conc[i + gridWidth] - conc[i - gridWidth]) / 2;
+      return {gx, gy};
+    }
+
+    // 粒子の更新（濃度勾配に基づいて動かす）
+    function updateParticles(){
+      for(let p of particles){
+        // 粒子のキャンバス座標をグリッド座標に変換
+        let gx = p.x / canvas.width * gridWidth;
+        let gy = p.y / canvas.height * gridHeight;
+        let grad = getGradient(gx, gy);
+        // 濃度勾配に反比例する力を加える（※効果の見せ方次第で符号を調整可能）
+        p.vx += -forceScale * grad.gx;
+        p.vy += -forceScale * grad.gy;
+        // 速度により位置を更新
+        p.x += p.vx;
+        p.y += p.vy;
+        // 摩擦による減速
+        p.vx *= friction;
+        p.vy *= friction;
+        // 画面外に出たら反対側にワープ
+        if(p.x < 0) p.x += canvas.width;
+        if(p.x >= canvas.width) p.x -= canvas.width;
+        if(p.y < 0) p.y += canvas.height;
+        if(p.y >= canvas.height) p.y -= canvas.height;
+      }
+    }
+
+    // 描画：背景をフェードさせ、粒子を描画
+    function draw(){
+      // 半透明で背景を塗り、トレイル効果を演出
+      ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // 粒子の描画
+      ctx.fillStyle = "cyan";
+      for(let p of particles){
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+
+    // アニメーションループ
+    function animate(){
+      updateField();
+      updateParticles();
+      draw();
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+
+    // ウィンドウリサイズ対応
+    window.addEventListener("resize", () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+  </script>
+</body>
+</html>
