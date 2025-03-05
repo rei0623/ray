@@ -10,7 +10,7 @@
       padding: 0;
       background: #000;
       overflow: hidden;
-      touch-action: none; /* タッチ操作で画面がスクロールしないように */
+      touch-action: none; /* タッチ操作でスクロールしないように */
     }
     canvas {
       display: block;
@@ -34,6 +34,9 @@
       padding: 8px 12px;
       font-size: 16px;
       margin-top: 5px;
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
     }
   </style>
 </head>
@@ -56,7 +59,9 @@
       <input type="checkbox" id="showField" checked> ヒートマップ表示
     </label><br><br>
     
-    <button id="resetBtn">Reset</button>
+    <button id="resetBtn">Reset Simulation</button>
+    <button id="pauseBtn">Pause Simulation</button>
+    <button id="closeBtn">Close Simulation</button>
     <p>タッチまたはクリック・ドラッグでソース追加</p>
   </div>
   <canvas id="canvas"></canvas>
@@ -80,10 +85,14 @@
     let forceScale = parseFloat(document.getElementById("forceScale").value);
     let friction = parseFloat(document.getElementById("friction").value);
     let showField = document.getElementById("showField").checked;
-
+    
+    // 状態管理
+    let paused = false;
+    let running = true;
+    
     // ソース（初期は中央に１つ）
     let sources = [{x: Math.floor(gridWidth / 2), y: Math.floor(gridHeight / 2)}];
-
+    
     // 粒子の初期化
     const numParticles = 1000;
     let particles = [];
@@ -99,7 +108,7 @@
       }
     }
     initParticles();
-
+    
     // UIでのパラメータ更新
     document.getElementById("diffusion").addEventListener("input", function() {
       diffusion = parseFloat(this.value);
@@ -120,11 +129,33 @@
     document.getElementById("showField").addEventListener("change", function() {
       showField = this.checked;
     });
-
+    
+    // Pause/Resume ボタン処理
+    const pauseBtn = document.getElementById("pauseBtn");
+    pauseBtn.addEventListener("click", function() {
+      paused = !paused;
+      pauseBtn.textContent = paused ? "Resume Simulation" : "Pause Simulation";
+    });
+    
+    // Close ボタン処理：シミュレーションを停止し、UIを非表示に
+    document.getElementById("closeBtn").addEventListener("click", function() {
+      running = false;
+      // キャンバスとコントロールパネルを非表示にする
+      canvas.style.display = "none";
+      document.getElementById("controls").style.display = "none";
+    });
+    
+    // Reset ボタン処理
+    document.getElementById("resetBtn").addEventListener("click", function() {
+      conc.fill(0);
+      newConc.fill(0);
+      sources = [{x: Math.floor(gridWidth / 2), y: Math.floor(gridHeight / 2)}];
+      initParticles();
+    });
+    
     // キャンバスでのソース追加（クリック・ドラッグ & タッチ）
     let isDrawing = false;
     function addSource(event) {
-      // マウスとタッチイベントの両方に対応
       let clientX, clientY;
       if(event.touches) {
         clientX = event.touches[0].clientX;
@@ -155,15 +186,7 @@
       e.preventDefault();
     }, {passive:false});
     canvas.addEventListener("touchend", function() { isDrawing = false; }, {passive:false});
-
-    // リセット機能
-    document.getElementById("resetBtn").addEventListener("click", function() {
-      conc.fill(0);
-      newConc.fill(0);
-      sources = [{x: Math.floor(gridWidth / 2), y: Math.floor(gridHeight / 2)}];
-      initParticles();
-    });
-
+    
     // 濃度フィールドの更新（拡散＋ソース追加）
     function updateField(){
       for(let y = 0; y < gridHeight; y++){
@@ -197,10 +220,9 @@
         let index = s.y * gridWidth + s.x;
         conc[index] += sourceStrength;
       }
-      // ソースは一度追加したら消去
       sources = [];
     }
-
+    
     // グリッド上の濃度勾配を中央差分で計算
     function getGradient(x, y){
       let ix = Math.floor(x);
@@ -212,8 +234,8 @@
       let gy = (conc[i + gridWidth] - conc[i - gridWidth]) / 2;
       return {gx, gy};
     }
-
-    // 粒子の更新（濃度勾配により運動）
+    
+    // 粒子の更新（濃度勾配による運動）
     function updateParticles(){
       for(let p of particles){
         let gx = p.x / canvas.width * gridWidth;
@@ -231,7 +253,7 @@
         if(p.y >= canvas.height) p.y -= canvas.height;
       }
     }
-
+    
     // ヒートマップ表示（濃度フィールドの可視化）
     function drawField(){
       const cellW = canvas.width / gridWidth;
@@ -247,7 +269,7 @@
         }
       }
     }
-
+    
     // 粒子の色を周辺濃度に応じて変化
     function getParticleColor(p){
       let gx = p.x / canvas.width * gridWidth;
@@ -262,7 +284,7 @@
       let blue = 255 - red;
       return `rgb(${red}, 100, ${blue})`;
     }
-
+    
     // 描画（背景トレイル＋ヒートマップ（オプション）＋パーティクル）
     function draw(){
       ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
@@ -275,19 +297,20 @@
         ctx.fill();
       }
     }
-
+    
     // アニメーションループ
     function animate(){
-      updateField();
-      updateParticles();
-      draw();
+      if (!running) return; // closeボタンで停止
+      if (!paused) {
+        updateField();
+        updateParticles();
+        draw();
+      }
       requestAnimationFrame(animate);
     }
-
+    
     animate();
-    window.addEventListener("resize", () => {
-      resizeCanvas();
-    });
+    window.addEventListener("resize", resizeCanvas);
   </script>
 </body>
 </html>
