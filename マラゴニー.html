@@ -10,11 +10,12 @@
       padding: 0;
       background: #000;
       overflow: hidden;
-      touch-action: none; /* タッチ操作でスクロールしないように */
+      touch-action: none; /* タッチ操作でスクロールしない */
     }
     canvas {
       display: block;
     }
+    /* コントロールパネル */
     #controls {
       position: absolute;
       top: 10px;
@@ -37,6 +38,19 @@
       display: block;
       width: 100%;
       box-sizing: border-box;
+    }
+    /* トグルボタン（常に画面上に表示） */
+    #toggleControls {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 20;
+      padding: 8px 12px;
+      font-size: 16px;
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
     }
   </style>
 </head>
@@ -61,9 +75,10 @@
     
     <button id="resetBtn">Reset Simulation</button>
     <button id="pauseBtn">Pause Simulation</button>
-    <button id="closeBtn">Close Simulation</button>
     <p>タッチまたはクリック・ドラッグでソース追加</p>
   </div>
+  <!-- コントロールパネルの表示／非表示を切り替えるトグルボタン -->
+  <button id="toggleControls">Hide Controls</button>
   <canvas id="canvas"></canvas>
   <script>
     // Canvas 初期設定
@@ -86,9 +101,8 @@
     let friction = parseFloat(document.getElementById("friction").value);
     let showField = document.getElementById("showField").checked;
     
-    // 状態管理
+    // シミュレーションの状態管理
     let paused = false;
-    let running = true;
     
     // ソース（初期は中央に１つ）
     let sources = [{x: Math.floor(gridWidth / 2), y: Math.floor(gridHeight / 2)}];
@@ -137,20 +151,25 @@
       pauseBtn.textContent = paused ? "Resume Simulation" : "Pause Simulation";
     });
     
-    // Close ボタン処理：シミュレーションを停止し、UIを非表示に
-    document.getElementById("closeBtn").addEventListener("click", function() {
-      running = false;
-      // キャンバスとコントロールパネルを非表示にする
-      canvas.style.display = "none";
-      document.getElementById("controls").style.display = "none";
-    });
-    
     // Reset ボタン処理
     document.getElementById("resetBtn").addEventListener("click", function() {
       conc.fill(0);
       newConc.fill(0);
       sources = [{x: Math.floor(gridWidth / 2), y: Math.floor(gridHeight / 2)}];
       initParticles();
+    });
+    
+    // コントロールパネルの表示／非表示を切り替えるトグルボタン処理
+    const toggleControlsBtn = document.getElementById("toggleControls");
+    toggleControlsBtn.addEventListener("click", function() {
+      const controls = document.getElementById("controls");
+      if (controls.style.display === "none") {
+        controls.style.display = "block";
+        toggleControlsBtn.textContent = "Hide Controls";
+      } else {
+        controls.style.display = "none";
+        toggleControlsBtn.textContent = "Show Controls";
+      }
     });
     
     // キャンバスでのソース追加（クリック・ドラッグ & タッチ）
@@ -285,7 +304,7 @@
       return `rgb(${red}, 100, ${blue})`;
     }
     
-    // 描画（背景トレイル＋ヒートマップ（オプション）＋パーティクル）
+    // 描画（背景トレイル＋ヒートマップ（オプション）＋粒子）
     function draw(){
       ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -300,7 +319,6 @@
     
     // アニメーションループ
     function animate(){
-      if (!running) return; // closeボタンで停止
       if (!paused) {
         updateField();
         updateParticles();
