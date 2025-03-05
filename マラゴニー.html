@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>Marangoni Effect Simulation</title>
+  <title>Marangoni Effect Simulation - Enhanced Version</title>
   <style>
     html, body {
       margin: 0;
@@ -20,12 +20,32 @@
       z-index: 10;
       color: #fff;
       font-family: sans-serif;
+      background: rgba(0, 0, 0, 0.5);
+      padding: 10px;
+      border-radius: 5px;
+    }
+    #controls input[type="range"] {
+      width: 150px;
     }
   </style>
 </head>
 <body>
   <div id="controls">
-    <p>Marangoni Effect Simulation</p>
+    <p><strong>Marangoni Effect Simulation - Enhanced</strong></p>
+    <label>Diffusion: <span id="diffusionVal">0.1</span></label><br>
+    <input type="range" id="diffusion" min="0.01" max="1" step="0.01" value="0.1"><br><br>
+    
+    <label>Source Strength: <span id="sourceVal">5</span></label><br>
+    <input type="range" id="sourceStrength" min="1" max="10" step="0.5" value="5"><br><br>
+    
+    <label>Force Scale: <span id="forceScaleVal">0.1</span></label><br>
+    <input type="range" id="forceScale" min="0.01" max="1" step="0.01" value="0.1"><br><br>
+    
+    <label>Friction: <span id="frictionVal">0.99</span></label><br>
+    <input type="range" id="friction" min="0.90" max="1" step="0.001" value="0.99"><br><br>
+    
+    <button id="resetBtn">Reset Simulation</button>
+    <p>Click on canvas to add a source!</p>
   </div>
   <canvas id="canvas"></canvas>
   <script>
@@ -35,16 +55,19 @@
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    // 濃度場（グリッド）のパラメータ
+    // グリッドのパラメータ
     const gridWidth = 100;
     const gridHeight = 100;
     let conc = new Array(gridWidth * gridHeight).fill(0);
     let newConc = new Array(gridWidth * gridHeight).fill(0);
-    const diffusion = 0.1;       // 拡散係数
-    const sourceStrength = 5;    // ソースから毎フレーム追加する濃度
-    const sourceX = Math.floor(gridWidth / 2);
-    const sourceY = Math.floor(gridHeight / 2);
-    
+    let diffusion = parseFloat(document.getElementById("diffusion").value); // 拡散係数
+    let sourceStrength = parseFloat(document.getElementById("sourceStrength").value); // ソース強度
+    let forceScale = parseFloat(document.getElementById("forceScale").value); // 力の大きさ
+    let friction = parseFloat(document.getElementById("friction").value); // 摩擦係数
+
+    // ソースの初期設定（中央に１つ）
+    let sources = [{x: Math.floor(gridWidth / 2), y: Math.floor(gridHeight / 2)}];
+
     // 粒子シミュレーションのパラメータ
     const numParticles = 1000;
     let particles = [];
@@ -56,12 +79,53 @@
         vy: 0
       });
     }
-    const friction = 0.99;
-    const forceScale = 0.1; // 濃度勾配から得る力の大きさ
+
+    // UIでのパラメータ更新
+    document.getElementById("diffusion").addEventListener("input", function() {
+      diffusion = parseFloat(this.value);
+      document.getElementById("diffusionVal").textContent = diffusion;
+    });
+    document.getElementById("sourceStrength").addEventListener("input", function() {
+      sourceStrength = parseFloat(this.value);
+      document.getElementById("sourceVal").textContent = sourceStrength;
+    });
+    document.getElementById("forceScale").addEventListener("input", function() {
+      forceScale = parseFloat(this.value);
+      document.getElementById("forceScaleVal").textContent = forceScale;
+    });
+    document.getElementById("friction").addEventListener("input", function() {
+      friction = parseFloat(this.value);
+      document.getElementById("frictionVal").textContent = friction;
+    });
+
+    // キャンバスをクリックしてソース追加
+    canvas.addEventListener("click", function(event) {
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const gx = Math.floor(x / canvas.width * gridWidth);
+      const gy = Math.floor(y / canvas.height * gridHeight);
+      sources.push({x: gx, y: gy});
+    });
+
+    // シミュレーションのリセット
+    document.getElementById("resetBtn").addEventListener("click", function() {
+      conc.fill(0);
+      newConc.fill(0);
+      sources = [{x: Math.floor(gridWidth / 2), y: Math.floor(gridHeight / 2)}];
+      particles = [];
+      for(let i = 0; i < numParticles; i++){
+        particles.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          vx: 0,
+          vy: 0
+        });
+      }
+    });
 
     // 濃度場の更新（拡散処理＋ソース追加）
     function updateField(){
-      // 各セルについて 4近傍との拡散（境界はシンプルに処理）
       for(let y = 0; y < gridHeight; y++){
         for(let x = 0; x < gridWidth; x++){
           let i = y * gridWidth + x;
@@ -86,19 +150,19 @@
           newConc[i] = conc[i] + diffusion * (sum / count - conc[i]);
         }
       }
-      // フィールドの入れ替え
       [conc, newConc] = [newConc, conc];
       
-      // 中央にソースを追加
-      let sourceIndex = sourceY * gridWidth + sourceX;
-      conc[sourceIndex] += sourceStrength;
+      // 各ソース位置にソース強度分の濃度を追加
+      for (let s of sources) {
+        let index = s.y * gridWidth + s.x;
+        conc[index] += sourceStrength;
+      }
     }
 
-    // 指定位置（グリッド座標）での濃度勾配を計算（中央差分）
+    // 指定位置での濃度勾配を中央差分で計算
     function getGradient(x, y){
       let ix = Math.floor(x);
       let iy = Math.floor(y);
-      // 周囲のセルに合わせてインデックスを制限
       ix = Math.max(1, Math.min(gridWidth - 2, ix));
       iy = Math.max(1, Math.min(gridHeight - 2, iy));
       let i = iy * gridWidth + ix;
@@ -107,23 +171,18 @@
       return {gx, gy};
     }
 
-    // 粒子の更新（濃度勾配に基づいて動かす）
+    // 粒子の更新（濃度勾配による影響）
     function updateParticles(){
       for(let p of particles){
-        // 粒子のキャンバス座標をグリッド座標に変換
         let gx = p.x / canvas.width * gridWidth;
         let gy = p.y / canvas.height * gridHeight;
         let grad = getGradient(gx, gy);
-        // 濃度勾配に反比例する力を加える（※効果の見せ方次第で符号を調整可能）
         p.vx += -forceScale * grad.gx;
         p.vy += -forceScale * grad.gy;
-        // 速度により位置を更新
         p.x += p.vx;
         p.y += p.vy;
-        // 摩擦による減速
         p.vx *= friction;
         p.vy *= friction;
-        // 画面外に出たら反対側にワープ
         if(p.x < 0) p.x += canvas.width;
         if(p.x >= canvas.width) p.x -= canvas.width;
         if(p.y < 0) p.y += canvas.height;
@@ -131,17 +190,30 @@
       }
     }
 
-    // 描画：背景をフェードさせ、粒子を描画
+    // 粒子の色を周辺濃度に応じて変化させる
+    function getParticleColor(p){
+      let gx = p.x / canvas.width * gridWidth;
+      let gy = p.y / canvas.height * gridHeight;
+      let ix = Math.floor(gx);
+      let iy = Math.floor(gy);
+      ix = Math.max(0, Math.min(gridWidth - 1, ix));
+      iy = Math.max(0, Math.min(gridHeight - 1, iy));
+      let index = iy * gridWidth + ix;
+      let c = conc[index];
+      // 濃度に応じて赤(高)～青(低)のグラデーション
+      let red = Math.min(255, Math.floor(c * 10));
+      let blue = 255 - red;
+      return `rgb(${red}, 100, ${blue})`;
+    }
+
+    // 描画：背景にフェード効果と粒子描画
     function draw(){
-      // 半透明で背景を塗り、トレイル効果を演出
       ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // 粒子の描画
-      ctx.fillStyle = "cyan";
       for(let p of particles){
+        ctx.fillStyle = getParticleColor(p);
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 2, 0, Math.PI*2);
+        ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
         ctx.fill();
       }
     }
