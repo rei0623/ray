@@ -2,13 +2,15 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>Marangoni Effect Simulation - Advanced</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marangoni Effect Simulation - Mobile Friendly</title>
   <style>
     html, body {
       margin: 0;
       padding: 0;
       background: #000;
       overflow: hidden;
+      touch-action: none; /* タッチ操作で画面がスクロールしないように */
     }
     canvas {
       display: block;
@@ -20,18 +22,24 @@
       z-index: 10;
       color: #fff;
       font-family: sans-serif;
-      background: rgba(0, 0, 0, 0.6);
+      background: rgba(0, 0, 0, 0.7);
       padding: 10px;
       border-radius: 5px;
+      font-size: 16px;
     }
     #controls input[type="range"] {
       width: 150px;
+    }
+    #controls button {
+      padding: 8px 12px;
+      font-size: 16px;
+      margin-top: 5px;
     }
   </style>
 </head>
 <body>
   <div id="controls">
-    <p><strong>Marangoni Effect Simulation - Advanced</strong></p>
+    <p><strong>Marangoni Effect Simulation</strong></p>
     <label>Diffusion: <span id="diffusionVal">0.1</span></label><br>
     <input type="range" id="diffusion" min="0.01" max="1" step="0.01" value="0.1"><br><br>
     
@@ -48,17 +56,20 @@
       <input type="checkbox" id="showField" checked> ヒートマップ表示
     </label><br><br>
     
-    <button id="resetBtn">Reset Simulation</button>
-    <p>キャンバスをクリックまたはドラッグしてソースを追加</p>
+    <button id="resetBtn">Reset</button>
+    <p>タッチまたはクリック・ドラッグでソース追加</p>
   </div>
   <canvas id="canvas"></canvas>
   <script>
     // Canvas 初期設定
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    
     // グリッドパラメータ
     const gridWidth = 100;
     const gridHeight = 100;
@@ -110,21 +121,40 @@
       showField = this.checked;
     });
 
-    // キャンバスクリック＆ドラッグでソース追加
+    // キャンバスでのソース追加（クリック・ドラッグ & タッチ）
     let isDrawing = false;
+    function addSource(event) {
+      // マウスとタッチイベントの両方に対応
+      let clientX, clientY;
+      if(event.touches) {
+        clientX = event.touches[0].clientX;
+        clientY = event.touches[0].clientY;
+      } else {
+        clientX = event.clientX;
+        clientY = event.clientY;
+      }
+      const rect = canvas.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      const gx = Math.floor(x / canvas.width * gridWidth);
+      const gy = Math.floor(y / canvas.height * gridHeight);
+      sources.push({x: gx, y: gy});
+    }
     canvas.addEventListener("mousedown", function(e) { isDrawing = true; addSource(e); });
     canvas.addEventListener("mouseup", function() { isDrawing = false; });
     canvas.addEventListener("mousemove", function(e) {
       if(isDrawing) addSource(e);
     });
-    function addSource(event) {
-      const rect = canvas.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
-      const gx = Math.floor(x / canvas.width * gridWidth);
-      const gy = Math.floor(y / canvas.height * gridHeight);
-      sources.push({x: gx, y: gy});
-    }
+    canvas.addEventListener("touchstart", function(e) { 
+      isDrawing = true; 
+      addSource(e);
+      e.preventDefault();
+    }, {passive:false});
+    canvas.addEventListener("touchmove", function(e) { 
+      if(isDrawing) addSource(e);
+      e.preventDefault();
+    }, {passive:false});
+    canvas.addEventListener("touchend", function() { isDrawing = false; }, {passive:false});
 
     // リセット機能
     document.getElementById("resetBtn").addEventListener("click", function() {
@@ -167,7 +197,7 @@
         let index = s.y * gridWidth + s.x;
         conc[index] += sourceStrength;
       }
-      // ソースは一度追加したら消去（長時間の影響は濃度拡散に任せる）
+      // ソースは一度追加したら消去
       sources = [];
     }
 
@@ -210,7 +240,6 @@
         for(let x = 0; x < gridWidth; x++){
           let index = y * gridWidth + x;
           let c = conc[index];
-          // 濃度に応じたカラー（低: 青、 高: 赤）
           let red = Math.min(255, Math.floor(c * 10));
           let blue = 255 - red;
           ctx.fillStyle = `rgb(${red}, 50, ${blue})`;
@@ -219,7 +248,7 @@
       }
     }
 
-    // パーティクルの色を周辺濃度に応じて変化
+    // 粒子の色を周辺濃度に応じて変化
     function getParticleColor(p){
       let gx = p.x / canvas.width * gridWidth;
       let gy = p.y / canvas.height * gridHeight;
@@ -236,12 +265,9 @@
 
     // 描画（背景トレイル＋ヒートマップ（オプション）＋パーティクル）
     function draw(){
-      // 半透明の背景でトレイル効果
       ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      // ヒートマップ表示
       if(showField) drawField();
-      // パーティクル描画
       for(let p of particles){
         ctx.fillStyle = getParticleColor(p);
         ctx.beginPath();
@@ -259,11 +285,8 @@
     }
 
     animate();
-
-    // ウィンドウリサイズ対応
     window.addEventListener("resize", () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      resizeCanvas();
     });
   </script>
 </body>
